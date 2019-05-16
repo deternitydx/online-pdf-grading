@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{data.dataset.name}} - {{data.plot.title}} - Plot View</title>
+
+<!-- JQuery -->
+<script src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha384-aUGj/X2zp5rLCbBxumKTCw2Z50WgIr1vs/PFN4praOTvYXWlVyh2UtNUU0KAUhAX" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+
+<!-- Helper Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/js/bootstrap-select.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/css/bootstrap-select.min.css">
+
+<!-- Select Upgrades -->
+<link href="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/css/select2.min.css" rel="stylesheet" />
+<script src="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/js/select2.min.js"></script>
+<link rel="stylesheet" href="css/select2-bootstrap.min.css">
+
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<!-- Datatables -->
+<link rel="stylesheet" href="//cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
+<script src="//cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+
+<!-- MathJax -->
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+});
+</script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML'></script>
+
+<style>
+body {
+    margin-top: 70px;
+    margin-bottom: 20px;
+}
+.varname, .varval {
+
+    padding-bottom: 0px;
+        margin-bottom: 0px;
+    line-height: 1em;
+
+}
+.vardesc {
+    font-size: 10px;
+    color: #555;
+    font-style: italic;
+    padding-top: 0px;
+    margin-top: 4px;
+    padding-bottom: 0px;
+        margin-bottom: 0px;
+    line-height: 1em;
+}
+
+table {
+    margin-left: auto;
+    margin-right: auto;
+    border: 1.5px solid #888;
+}
+
+tr, td {
+    vertical-align: top;
+}
+
+th, td {
+    padding: 5px;
+        border: 1px solid #888;
+}
+
+</style>
+</head>
+
+<body role="document">
+{% from 'page_navigation.html' import topNavigation,footer %}
+{{ topNavigation() }}
+
+
+<div class="container" role="main">
+    <h1>{{data.dataset.name}}: {{data.plot.title}}</h1>
+    <ul class="breadcrumb">
+        <li><a href="?c=menu&d={{data.dataset.id}}">{{data.dataset.name}}</a></li>
+        <li><a href="?c=list&d={{data.dataset.id}}">Plot List</a></li>
+        <li>{{data.plot.title}}</li>
+    </ul>
+    <p>{{data.plot.description}}</p>
+    <p class="text-right">
+    {% if not data.showTrim %}
+        <a href="?c=view&p={{data.plot.id}}&d={{data.dataset.id}}&trim=1" class="btn btn-primary">Trim</a>
+    {% else %}
+        <a href="?c=view&p={{data.plot.id}}&d={{data.dataset.id}}" class="btn btn-primary">Untrim</a>
+    {% endif %}
+    <a href="?c=graph&p={{data.plot.id}}&d={{data.dataset.id}}" class="btn btn-info">Graph</a>
+    </p>
+
+    <div class="row">
+        <div class="col-md-12">
+            {% if data.plot.files.images|length == 0 %}
+                <h4>No plots to display</h4>
+            {% else %}
+            {% if data.showTrim %}
+                {% for file in data.plot.files.trim.images %}
+                <a href="?c=file&d={{data.dataset.id}}&p={{data.plot.id}}&filename={{file|replace({'.png':'.pdf'})}}"><img src="?c=file&d={{data.dataset.id}}&p={{data.plot.id}}&filename={{file}}" style="width:49%;"></a>
+                {% endfor %}
+            {% else %}
+                {% for file in data.plot.files.images %}
+                <a href="?c=file&d={{data.dataset.id}}&p={{data.plot.id}}&filename={{file|replace({'.png':'.pdf'})}}"><img src="?c=file&d={{data.dataset.id}}&p={{data.plot.id}}&filename={{file}}" style="width:49%;"></a>
+                {% endfor %}
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="text-center">Variables</h3>
+            <table>
+                <thead>
+                    <th>Variable</th>
+                    <th>Value</th>
+                </thead>
+                <tbody>
+                    {% for var in data.plot.variables %}
+                    <tr>
+                        <td><p class="varname">{{ var.latex ? var.latex : var.name}}</p>
+                            <p class="vardesc">{{var.description}}</p></td>
+                        <td>
+                            <p class="varval">
+                            {{var.values|join(', ')}}
+                            </p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{{ footer() }}
+</body>
+</html>
+
+

@@ -1,0 +1,22 @@
+{
+    "name": "deternitydx/pdfgrader",
+    "description": "Grading application for PDF documents",
+    "license": "Apache2",
+    "authors": [
+        {
+            "name": "Robbie Hott"
+        }
+    ],
+    "require": {
+        "php": "~7.0"
+    },
+    "require-dev": {
+        "phpdocumentor/phpdocumentor": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "grader\\": "src/"
+        }
+    }
+}
+

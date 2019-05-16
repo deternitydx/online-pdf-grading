@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{data.dataset.name}} - {{data.plot.title}} - Plot View</title>
+
+<!-- JQuery -->
+<script src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha384-aUGj/X2zp5rLCbBxumKTCw2Z50WgIr1vs/PFN4praOTvYXWlVyh2UtNUU0KAUhAX" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+
+<!-- Helper Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/js/bootstrap-select.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/css/bootstrap-select.min.css">
+
+<!-- Select Upgrades -->
+<link href="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/css/select2.min.css" rel="stylesheet" />
+<script src="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/js/select2.min.js"></script>
+<link rel="stylesheet" href="css/select2-bootstrap.min.css">
+
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<!-- Datatables -->
+<link rel="stylesheet" href="//cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
+<script src="//cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+
+<!-- MathJax -->
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+});
+</script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML'></script>
+
+<style>
+body {
+    margin-top: 70px;
+    margin-bottom: 20px;
+}
+tr, td, table {
+    border: 0px !important;
+}
+.varname, .varval {
+
+    padding-bottom: 0px;
+        margin-bottom: 0px;
+    line-height: 1em;
+
+}
+.vardesc {
+    font-size: 10px;
+    color: #555;
+    font-style: italic;
+    padding-top: 0px;
+    margin-top: 4px;
+    padding-bottom: 0px;
+        margin-bottom: 0px;
+    line-height: 1em;
+}
+
+table {
+    margin-left: auto;
+    margin-right: auto;
+    border: 1.5px solid #888;
+}
+
+tr, td {
+    vertical-align: top;
+}
+
+th, td {
+    padding: 5px;
+        border: 1px solid #888;
+}
+
+</style>
+<style>
+
+.node {
+    stroke: #fff;
+    stroke-width: 1.5px;
+}
+
+.link {
+    stroke: #999;
+    stroke-opacity: .6;
+    stroke-width: 1;
+}
+
+</style>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="js/slider/d3.slider.js"></script>
+<link rel="stylesheet" href="js/slider/d3.slider.css" />  
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
+</head>
+
+<body role="document">
+{% from 'page_navigation.html' import topNavigation,footer %}
+{{ topNavigation() }}
+
+
+<div class="container" role="main">
+    <h1>{{data.dataset.name}}: {{data.plot.title}}</h1>
+    <ul class="breadcrumb">
+        <li><a href="?c=menu&d={{data.dataset.id}}">{{data.dataset.name}}</a></li>
+        <li><a href="?c=list&d={{data.dataset.id}}">Plot List</a></li>
+        <li>{{data.plot.title}}</li>
+    </ul>
+    <p>{{data.plot.description}}</p>
+    <p class="text-right">
+        <a href="?c=view&p={{data.plot.id}}&d={{data.dataset.id}}" class="btn btn-primary">Plots</a>
+        <a href="?c=view&p={{data.plot.id}}&d={{data.dataset.id}}&trim=1" class="btn btn-primary">Trim</a>
+    </p>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="leftmain" id="leftmain">
+            </div>
+            <div class="rightmain" id="rightmain">
+                <p id="edgeCount">Edges</p>
+            </div>
+            <div class="bottom" id="bottom">
+            </div>
+            
+            <script>
+                // Filename to load
+                var filename = "?c=graphdata&p={{data.plot.id}}&d={{data.dataset.id}}";
+            
+                // Temporal max and min
+                var min = 1;
+                var max = 100;
+
+                console.log("Starting the script");
+
+                var winW = 900, winH = 800;
+                /*if (document.body && document.body.offsetWidth) {
+                     winW = document.body.offsetWidth;
+                     winH = document.body.offsetHeight;
+                }
+                if (document.compatMode=='CSS1Compat' &&
+                            document.documentElement &&
+                            document.documentElement.offsetWidth ) {
+                     winW = document.documentElement.offsetWidth;
+                     winH = document.documentElement.offsetHeight;
+                }
+                if (window.innerWidth && window.innerHeight) {
+                     winW = window.innerWidth;
+                     winH = window.innerHeight;
+                }*/
+
+                var width = winW,
+                    height = winH - 150;
+
+                var color = d3.scale.category20();
+
+                var force = d3.layout.force()
+                    .charge(-1090)
+                    .gravity(0.5)
+                    .linkDistance(300)
+                    .size([width, height]);
+
+                var svg = d3.select("#leftmain").append("svg")
+                    .attr("width", width)
+                    .attr("height", height);
+
+                console.log("calling d3");
+                /* Read the JSON file */
+                d3.json(filename, function(error, graphData) {
+                    if (error) throw error;
+                    console.log("Starting the display");
+
+                    var graph = {
+                        "nodes" : [],
+                        "edges" : []
+                    };
+
+                    graphData["Temporal Graph"].Vertices.forEach(function(v) {
+                        if (v.presence.length > 0)
+                            graph.nodes.push(v);
+                    });
+
+                    graphData["Temporal Graph"].Edges.forEach(function(edge) {
+                        if (edge.timeline[0].length > 0) 
+                            graph.edges.push(edge);
+                    });
+
+                    var degIndex = 0;
+                    var maxDeg = 0;
+                    graph.nodes.forEach(function(node, i) {
+                        node.id = parseInt(node.value);
+                        node.timeline = node.presence;
+                    });
+                    graph.nodes.sort(function(a,b) {return a.id - b.id;});
+                    graph.edges.forEach(function(edge, i) {
+                        edge.id = parseInt(edge.value);
+                        edge.timeline = edge.timeline[0];
+                        edge.source = edge.endpoints[0].value;
+                        edge.target = edge.endpoints[1].value;
+                    });
+                    graph.edges.sort(function(a,b) {return a.id - b.id;});
+                    console.log(graph);
+
+                    force
+                        .nodes(graph.nodes)
+                        .links(graph.edges);
+
+                    var link = svg.selectAll(".link")
+                        .data(graph.edges)
+                        .enter().append("line")
+                        .attr("class", function(d) {return "link from" + d.source + " to" + d.target; })
+                        .style("stroke-width", 1);
+
+                    var node = svg.selectAll(".node")
+                        .data(graph.nodes)
+                        .enter().append("circle")
+                        .attr("class", "node")
+                        .attr("r", 5)      
+                        .attr("title", function(d) {return "n" + d.id; })
+                        .attr("id", function(d) {return "n" + d.id; })
+                        .style("fill", function(d) { return color(1); })
+                        .on("mouseover",
+                            function(d) {
+                                d3.select("#n"+d.id).attr("r", 10);
+                                //d3.selectAll(".from"+d.id).attr("style", "stroke: #B45F04; stroke-opacity: 1; stroke-width: 2");
+                                //d3.selectAll(".to"+d.id).attr("style", "stroke: #B45F04; stroke-opacity: 1; stroke-width: 2");
+                            })
+                        .on("mouseout",
+                            function(d) {
+                                d3.select("#n"+d.id).attr("r", 5);
+                                //d3.selectAll(".from"+d.id).attr("style", "");
+                                //d3.selectAll(".to"+d.id).attr("style", "");
+                            })
+                        .call(force.drag);
+
+                    node.append("title")
+                        .text(function(d) { return d.id; });
+
+                    force.on("tick", function() {
+                        link.attr("x1", function(d) { return d.source.x; })
+                            .attr("y1", function(d) { return d.source.y; })
+                            .attr("x2", function(d) { return d.target.x; })
+                            .attr("y2", function(d) { return d.target.y; });
+
+                        node.attr("cx", function(d) { return d.x; })
+                            .attr("cy", function(d) { return d.y; });
+                    });
+                    
+                    graph.nodes.forEach( function(node) {
+                            // start the node in the center
+                            node.x = width / 2;
+                            node.y = height / 2;
+                    });
+
+                    setTimeout(function() {
+                        force.start();
+                        for (var i = 150; i > 0; --i) force.tick();
+                        force.stop();
+
+
+                    }, 3);
+
+
+                });
+
+                var table = d3.select(".bottom").append("table");
+
+                var slider_scale = d3.scale.linear().domain([min, max]).range([min, max]);
+                var slider_axis = d3.svg.axis().orient("bottom").ticks(10).scale(slider_scale).tickFormat(d3.format(".0f"));
+
+
+                var row = table.append("tr");
+                row.append("td").attr("class", "tablehead").style("width", "20%").text("Time Selection(s):");
+                var cell = row.append("td").style("width", "900px");
+
+
+
+                var updateGraph = function(event, time) {
+                    var count = 0;
+                    svg.selectAll(".link").data(force.links())
+                        .style("opacity", function(d) {
+                                for (var i = 0; i < d.timeline.length; i++) {
+                                    if (time < d.timeline[i].begin) {
+                                        break;
+                                    } else if (d.timeline[i].begin < time && d.timeline[i].end >= time) {
+                                        count++;
+                                        return "1.0";
+                                    }
+                                }
+                                return "0.1";
+                            })
+                        .style("stroke", function(d) { 
+                                for (var i = 0; i < d.timeline.length; i++) {
+                                    if (time < d.timeline[i].begin) {
+                                        break;
+                                    } else if (d.timeline[i].begin < time && d.timeline[i].end >= time) {
+                                        return "#0000ff";
+                                    }
+                                }
+                                return "#cccccc";
+                                });
+
+                    d3.select("#edgeCount").text(count + " edges");
+
+                }
+
+                cell.append("div").call(d3.slider().axis(slider_axis).min(min).max(max).on("slide", updateGraph));
+
+            </script>
+        </div>
+    </div>
+</div>
+{{ footer() }}
+</body>
+</html>
+
+

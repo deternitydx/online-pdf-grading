@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Homework: Assign Graders</title>
+
+<!-- JQuery -->
+<script src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha384-aUGj/X2zp5rLCbBxumKTCw2Z50WgIr1vs/PFN4praOTvYXWlVyh2UtNUU0KAUhAX" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+
+<!-- Helper Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/js/bootstrap-select.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.7.5/css/bootstrap-select.min.css">
+
+<!-- Select Upgrades -->
+<link href="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/css/select2.min.css" rel="stylesheet" />
+<script src="//cdnjs.cloudflare.com/ajax/libs/select2/4.0.2-rc.1/js/select2.min.js"></script>
+<link rel="stylesheet" href="css/select2-bootstrap.min.css">
+
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<!-- Datatables -->
+<link rel="stylesheet" href="//cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
+<script src="//cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+
+<style>
+body {
+    margin-top: 70px;
+}
+</style>
+<script>
+$(document).ready(function() {
+    $("select.prettify").select2({
+        width: '100%',
+        allowClear: true,
+        theme: 'bootstrap'
+    });
+});
+</script>
+</head>
+
+<body role="document">
+{% from 'page_navigation.html' import topNavigation,footer %}
+{{ topNavigation() }}
+
+
+<div class="container" role="main">
+    <h1>Assign Graders: {{data.homework.name}}</h1>
+    <p>Choose a grader below and assign a selection of students and problems.</p>
+
+    <div class="row">
+        <div class="col-md-12">
+
+            <form method="POST" action="?command=assign-graders-post">
+                <input type="hidden" name="course_id" value="{{data.course.id}}">
+                <input type="hidden" name="homework_id" value="{{data.homework.id}}">
+                <div class="form-group">
+                    <label for="grader">Grader</label>
+                    <select name="grader" class="form-control prettify">
+                        {% for grader in data.course.graders %}
+                        <option value="{{grader.id}}">{{grader.name}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="problems">Problems</label>
+                            <select multiple name="problems[]" size="15" class="form-control" style="width: 200px;">
+                                {% for problem in data.homework.problems %}
+                                <option value="{{problem.id}}">{{problem.name}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="students">Students</label>
+                            <select multiple name="students[]" size="15" class="form-control" style="width: 200px;">
+                                {% for student in data.homework.students %}
+                                <option value="{{student.userid}}">{{student.userid}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-default">Assign and Continue</button>
+            </form>
+        </div>
+    </div>
+</div>
+{{ footer() }}
+</body>
+</html>
+
+

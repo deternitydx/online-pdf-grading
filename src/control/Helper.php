@@ -3,6 +3,19 @@ namespace grader\control;
 
 use \grader\Config as Config;
 
+// helper function for CSV
+// From: https://gist.github.com/johanmeiring/2894568
+if (!function_exists('str_putcsv')) {
+    function str_putcsv($input, $delimiter = ',', $enclosure = '"') {
+        $fp = fopen('php://temp', 'r+b');
+        fputcsv($fp, $input, $delimiter, $enclosure);
+        rewind($fp);
+        $data = rtrim(stream_get_contents($fp), "\n");
+        fclose($fp);
+        return $data;
+    }
+}
+
 class Helper {
 
     public $dData;
@@ -27,12 +40,19 @@ class Helper {
         }
 
         switch($command) {
+            case 'new-course':
+                $this->newCourse($input);
+                break;
+            case 'save-course':
+                $courseid = $this->saveCourse($input);
+                $this->showCourse($courseid);
+                break;
             case 'new-homework':
                 $this->newHomework($input['course_id']);
                 break;
             case 'create-homework':
                 $this->createHomework($input);
-                $this->showCourse($input);
+                $this->showCourse($input['course_id']);
                 break;
             case 'assign-graders-post':
                 $this->updateGraders($input);
@@ -49,7 +69,10 @@ class Helper {
                 $this->showPDF($input["userid"], $input["homework_id"]);
                 break;
             case 'course':
-                $this->showCourse($input);
+                $this->showCourse($input['course_id']);
+                break;
+            case 'download-grades':
+                $this->downloadGrades($input["homework_id"], $input['course_id']);
                 break;
             case 'list-courses':
             default:
@@ -111,7 +134,7 @@ class Helper {
         //TODO sanity checks
 
         foreach ($data["problem"] as $i => $gid) {
-            $res = $this->db->query("update grade set grade = $1, comment = $2, graded = 't' where id = $3 and grader_id = (select id from grader where userid = $4 and course_id = $5 limit 1);", 
+            $res = $this->db->query("update grade set grade = $1, comment = $2, graded = 't', graded_time = now() where id = $3 and grader_id = (select id from grader where userid = $4 and course_id = $5 limit 1);", 
                 array(
                     $this->getValue($data["points"][$i]), 
                     $this->getValue($data["comments"][$i]), 
@@ -193,10 +216,107 @@ class Helper {
             $homework = $data[0];
             $res = $this->db->query("select * from problem where homework_id = $1", array($hid));
             $data = $this->db->fetchAll($res);
-            $homework["problems"] = $data;
+            $tmp = [];
+            foreach ($data as $d) {
+                $tmp[$d["id"]] = $d;
+                $tmp[$d["id"]]["status"] = [
+                    "graded" => 0,
+                    "count" => 0,
+                    "percentgraded" => 0
+                ];
+            }
+            $homework["problems"] = $tmp;
+
             $res = $this->db->query("select distinct userid from grade where homework_id = $1 and grader_id is null order by userid asc", array($hid));
             $data = $this->db->fetchAll($res);
             $homework["students"] = $data;
+            
+            // Get an overall count ungraded
+            $res = $this->db->query("select count(*) as ungraded from grade where homework_id = $1 and not graded", array($hid));
+            $data = $this->db->fetchAll($res);
+            $homework["ungraded"] = $data[0]["ungraded"];
+            $res = $this->db->query("select count(*) as all from grade where homework_id = $1", array($hid));
+            $data = $this->db->fetchAll($res);
+            $homework["count"] = $data[0]["all"];
+            $homework["percentgraded"] = round(100* ($homework["count"] - $homework["ungraded"]) / (double) $homework["count"], 2);
+
+            // get recents for this user: TODO: update based on userid not id
+            $res = $this->db->query("select distinct userid, graded_time from grade where homework_id = $1 and grader_id = $2 and graded order by graded_time desc", array($hid, $this->user["id"]));
+            //$res = $this->db->query("select userid from (select userid, graded_time from grade where homework_id = $1 and grader_id = $2 and graded order by graded_time desc) a group by userid", array($hid, $this->user["id"]));
+            $data = $this->db->fetchAll($res);
+            $tmp = [];
+            $prev = "";
+            if (!empty($data)) {
+                foreach ($data as $d) {
+                    if ($d["userid"] != $prev) {
+                        array_push($tmp, $d);
+                        $prev = $d["userid"];
+                    }
+                }
+            }
+
+            $homework["recents"] = $tmp;
+
+            // grader stats
+            $res = $this->db->query("select graded, count(*)  from grade where homework_id = $1 and grader_id = $2 group by graded", array($hid, $this->user["id"]));
+            $data = $this->db->fetchAll($res);
+
+            $homework["graderstatus"] = [
+                "graded" => 0,
+                "total" => 0,
+                "ungraded" => 0
+            ];
+            if (isset($data[0])) {
+                foreach ($data as $d) {
+                    if ($d["graded"] == 't')
+                        $homework["graderstatus"]["graded"] = $d['count'];
+                    if ($d["graded"] == 'f')
+                        $homework["graderstatus"]["ungraded"] = $d['count'];
+                }
+                $homework["graderstatus"]["total"] = $homework["graderstatus"]["graded"] + $homework["graderstatus"]["ungraded"];
+            }
+
+
+            $res = $this->db->query("select problem_id, count(*) as graded from grade where homework_id = $1 and graded group by problem_id", array($hid));
+            $data = $this->db->fetchAll($res);
+            if (isset($data[0])) {
+                foreach ($data as $d) {
+                    $homework["problems"][$d["problem_id"]]["status"]["graded"] = $d["graded"];
+                }
+            }
+            $res = $this->db->query("select problem_id, count(*) as all from grade where homework_id = $1 group by problem_id", array($hid));
+            $data = $this->db->fetchAll($res);
+            foreach ($data as $d) {
+                $homework["problems"][$d["problem_id"]]["status"]["count"] = $d["all"];
+                $homework["problems"][$d["problem_id"]]["status"]["percentgraded"] = round(100 * ($homework["problems"][$d["problem_id"]]["status"]["graded"] / (double) $homework["problems"][$d["problem_id"]]["status"]["count"]),2);
+            }
+
+            // grader stats
+            $res = $this->db->query("select a.name, b.graded, b.count from grader a, (select grader_id, graded, count(*)  from grade where homework_id = $1 group by grader_id, graded order by grader_id, graded asc) b where a.id = b.grader_id", array($hid));
+            $data = $this->db->fetchAll($res);
+
+            $tmp = [];
+            if (isset($data[0])) {
+                foreach ($data as $d) {
+                    if (!isset($tmp[$d["name"]]))
+                        $tmp[$d["name"]] = [];
+                    if ($d["graded"] == 't')
+                        $tmp[$d["name"]]["graded"] = $d['count'];
+                    if ($d["graded"] == 'f')
+                        $tmp[$d["name"]]["ungraded"] = $d['count'];
+                }
+                foreach ($tmp as $k => $v) {
+                    $g = 0;
+                    $ung = 0;
+                    if (isset($tmp[$k]["graded"]))
+                        $g = $tmp[$k]["graded"];
+                    if (isset($tmp[$k]["ungraded"]))
+                        $ung = $tmp[$k]["ungraded"];
+                    $tmp[$k]["total"] = $g + $ung;
+                }
+            }
+            $homework["graders"] = $tmp;
+
         }
         return $homework;
     }
@@ -206,10 +326,16 @@ class Helper {
         $course = $this->loadCourse($cid);
         $this->display("upload", ["course" => $course]);
     }
+    
+    public function newCourse($cid) {
+        //TODO sanity check (has permissions)
+        $this->display("newcourse", null);
+    }
 
-    public function showCourse($data) {
+
+    public function showCourse($id) {
         //TODO sanity check
-        $course = $this->loadCourse($data["course_id"]);
+        $course = $this->loadCourse($id);
         $this->display("course", ["course" => $course]);
     }
 
@@ -234,10 +360,53 @@ class Helper {
                 
     }
 
-    public function createHomework($data) {
+    public function saveCourse($data) {
         //$hw = new \grader\data\Homework($data);
         //TODO Sanity checks
         
+        
+        
+        $res = $this->db->query("insert into course (name, description) values ($1, $2) returning id;", array($data["name"], $data["description"]));
+        $tmp = $this->db->fetchAll($res);
+        if (count($tmp) != 1) {
+            $this->showError("Database Error");
+        }
+        $id = $tmp[0]["id"];
+
+        $tatmp = explode(",", $data["tas"]);
+        $intmp = explode(",", $data["instructors"]);
+
+        $tas = [];
+        $instructors = [];
+        foreach ($tatmp as $ta) {
+            $tmp = trim($ta);
+            if ($tmp != "") {
+                list ($uid, $name) = explode(" ", $tmp, 2);
+                array_push($tas, ["userid" => $uid, "name" => $name]);
+            }
+        }
+        foreach ($intmp as $in) {
+            $tmp = trim($in);
+            if ($tmp != "") {
+                list ($uid, $name) = explode(" ", $tmp, 2);
+                array_push($instructors, ["userid" => $uid, "name" => $name]);
+            }
+        }
+
+        foreach ($tas as $ta) {
+            $res = $this->db->query("insert into grader (userid, name, course_id, instructor) values ($1, $2, $3, false) returning *;", array($ta["userid"], $ta["name"], $id));
+        }
+        foreach ($instructors as $instructor) {
+            $res = $this->db->query("insert into grader (userid, name, course_id, instructor) values ($1, $2, $3, true) returning *;", array($instructor["userid"], $instructor["name"], $id));
+        }
+
+        return $id;
+
+    }
+
+    public function createHomework($data) {
+        //$hw = new \grader\data\Homework($data);
+        //TODO Sanity checks
         
         
         $course = $this->loadCourse($data["course_id"]);
@@ -292,13 +461,13 @@ class Helper {
             $i = 0;
             while (($grData = fgetcsv($fp, 1000, ",")) !== FALSE) {
                 if ($i++ > 2)
-                    array_push($students, $grData[1]);
+                    array_push($students, ["id" => $grData[1], "name" => $grData[2] . ", " . $grData[3]]);
             }
             fclose($fp);
         }
         foreach ($students as $student) {
             foreach ($problems as $problem) {
-                $this->db->query("insert into grade (homework_id, problem_id, userid) values ($1, $2, $3);", array($id, $problem["id"], $student));
+                $this->db->query("insert into grade (homework_id, problem_id, userid, name) values ($1, $2, $3, $4);", array($id, $problem["id"], $student["id"], $student["name"]));
             }
         }
     }
@@ -325,7 +494,7 @@ class Helper {
         }
 
         // You should also check filesize here.
-        if ($_FILES['zipfile']['size'] > 100000000) {
+        if ($_FILES['zipfile']['size'] > 1024000000) {
             throw new \RuntimeException('Exceeded filesize limit.');
         }
 
@@ -344,19 +513,20 @@ class Helper {
     }
 
     public function readUser($uid) {
-        $res = $this->db->query("select g.*, c.name as course_name, c.description as course_description from grader g, course c where g.course_id = c.id and userid = $1", array($uid));
+        $res = $this->db->query("select g.*, g.id as db_id, c.name as course_name, c.description as course_description from grader g, course c where g.course_id = c.id and userid = $1", array($uid));
         $data = $this->db->fetchAll($res);
 
         $user = [];
         $courses = [];
         foreach ($data as $line) {
+            $user["id"] = $line["db_id"];
             $user["userid"] = $line["userid"];
             $user["name"] = $line["name"];
             $courses[$line["course_id"]] = [
                 "id" => $line["course_id"],
                 "name" => $line["course_name"],
                 "description" => $line["course_description"],
-                "instructor" => $line["instructor"]
+                "instructor" => $line["instructor"] == 't' ? true : false
             ];
         }
         if (!empty($user)) {
@@ -380,5 +550,169 @@ class Helper {
     public function showError($error) {
         $this->display("error", ["error" => $error]);
         die();
+    }
+
+    private function loadResults($hid, $cid) {
+        $res = $this->db->query("select * from course c where c.id = $1", array($cid));
+        $course = $this->db->fetchAll($res);
+        if (count($course) != 1) {
+            $this->showError("Database Error");
+        }
+        $course = $course[0];
+
+        $res = $this->db->query("select * from homework h where h.id = $1 and h.course_id = $2", array($hid, $cid));
+        $homework = $this->db->fetchAll($res);
+        if (count($homework) != 1) {
+            $this->showError("Database Error");
+        }
+        $homework = $homework[0];
+
+        $res = $this->db->query("select * from problem p where p.homework_id = $1 order by p.id", array($hid));
+        $problems = $this->db->fetchAll($res);
+        if (count($problems) <= 0) {
+            $this->showError("Database Error");
+        }
+        $ps = [];
+        $max = 0;        
+        foreach ($problems as $p) {
+            $ps[$p["id"]] = $p;
+            $max += $p["points"];
+        }
+        $homework["max"] = $max;
+
+        $res = $this->db->query("select * from grade g where g.homework_id = $1 order by g.userid, g.problem_id", array($hid));
+        $grades = $this->db->fetchAll($res);
+        if (count($grades) <= 0) {
+            $this->showError("Database Error");
+        }
+
+        $byuser = [];
+        foreach ($grades as $grade) {
+            $id = $grade["userid"];
+            if (!isset($byuser[$grade["userid"]]))
+                $byuser[$id] = [
+                    "uva_id" => $id,
+                    "name" => $grade["name"],
+                    "problems" => []
+                ];
+            $byuser[$id]["problems"][$grade["problem_id"]] = [
+                "grade" => $grade["grade"],
+                "comment" => $grade["comment"]
+            ];
+        }
+
+        $results = [
+            "info" => array_merge($homework, ["problems" => $ps]),
+            "homeworks" => $byuser
+        ];
+
+        return $results;
+    }
+    
+    /**
+     * Download Grades
+     *
+     * Packages up the grades and creates a ZIP file compatible with 
+     * UVA Collab for upload.  This creates the grades file, then turns
+     * the submissions into PDFs for the students to view their submissions.
+     *
+     * @param int $onlyid optional currently unused
+     * @return Contents of the created zipfile
+     */
+    public function downloadGrades($hid, $cid) {
+        $results = $this->loadResults($hid, $cid);
+        $info = $results["info"];
+        //$dir = Config::$TEMP_DIR . "/".$results["info"]["title"];
+        $zdir = $results["info"]["name"];
+        $zip = new \ZipArchive();
+        $zipname = Config::$TEMP_DIR . "/". $info["id"] .".zip";
+        $zip->open($zipname, \ZipArchive::CREATE);
+        $zip->addEmptyDir($zdir);
+
+        $gradefile = [];
+        array_push($gradefile, [$info["name"], "Points"]); 
+        array_push($gradefile, []); 
+        array_push($gradefile, 
+            ["Display ID","ID","Last Name","First Name","grade","Submission date","Late submission"]
+        );
+
+        foreach ($results["homeworks"] as $hw) {
+            // only download student grades
+
+            $uzdir = "$zdir/{$hw["name"]}({$hw["uva_id"]})";
+            $zip->addEmptyDir($zdir);
+
+
+            $response = "";
+            $comments = "";
+            $score = 0;
+            foreach ($info["problems"] as $q) {
+                $comments .= "{$q["name"]}: ";
+                if (isset($hw["problems"][$q["id"]]) && isset($hw["problems"][$q["id"]]["grade"])) {
+                    $comments .= $hw["problems"][$q["id"]]["grade"] . "/" . $q["points"] ." -- ";
+                    $score += $hw["problems"][$q["id"]]["grade"];
+                    if (isset($hw["problems"][$q["id"]]["comment"])) {
+                        $comments .= $hw["problems"][$q["id"]]["comment"];
+                    }
+                    $comments .= "\n";
+                } else {
+                    $comments .= "0/".$q["points"]."\n";
+                }
+            }
+
+            $score = round($score, 2);
+            
+
+            $comments .= "\n-------------------\nOriginal Score: $score\n";
+
+            // TODO: handle late policy
+
+
+            $comments .= "Final Score: $score\n";
+
+            array_push($gradefile, [
+                $hw["uva_id"],
+                $hw["uva_id"],
+                "", // last name
+                "", // first name
+                round($score, 2), // grade
+                "", // submission date
+                "" // late submission
+            ]);
+
+
+            $zip->addFromString("$uzdir/comments.txt", $comments);
+        }
+
+        // write the grades.csv file
+        //$fp = fopen("$dir/grades.csv", 'w');
+        //foreach ($gradefile as $fields) {
+        //    fputcsv($fp, $fields);
+        //}
+        //fclose($fp);
+        $gradefilecsv = "";
+        foreach ($gradefile as $fields) {
+            $gradefilecsv .= str_putcsv($fields) . "\n";
+        }
+        $zip->addFromString("$zdir/grades.csv", $gradefilecsv); 
+        
+        
+        // close zip for downloading
+        $zip->close();
+
+        // show ZIP file
+        header('Content-Type: application/zip');
+        header('Content-disposition: attachment; filename=bulk_download.zip');
+        header('Content-Length: ' . filesize($zipname));
+        $zipfile = file_get_contents($zipname); 
+        
+        // remove the zip from the local filesystem
+        unlink($zipname);
+
+        // remove the temporary PDFs from the filesystem
+        
+
+        // return the contents of the zipfile
+        echo $zipfile;
     }
 }

@@ -12,7 +12,6 @@ $in = array_merge($_POST, $_GET);
 foreach ($in as $k => $v) {
     $input[str_replace("_", " ", $k)] = $v;
 }
-
 $helper->run($in);
 
 

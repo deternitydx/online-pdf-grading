@@ -73,22 +73,24 @@ $(document).ready(function() {
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="problems">Problems</label>
-                            <select multiple name="problems[]" size="15" class="form-control" style="width: 200px;">
+                            <select multiple name="problems[]" size="15" class="form-control" style="width: 200px;" id="problems">
                                 {% for problem in data.homework.problems %}
                                 <option value="{{problem.id}}">{{problem.name}}</option>
                                 {% endfor %}
                             </select>
                         </div>
+                        <p id="problemscount">0 selected</p>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="students">Students</label>
-                            <select multiple name="students[]" size="15" class="form-control" style="width: 200px;">
+                            <select multiple name="students[]" size="15" class="form-control" style="width: 200px;" id="students">
                                 {% for student in data.homework.students %}
                                 <option value="{{student.userid}}">{{student.userid}}</option>
                                 {% endfor %}
                             </select>
                         </div>
+                        <p id="studentscount">0 selected</p>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-default">Assign and Continue</button>
@@ -97,6 +99,15 @@ $(document).ready(function() {
     </div>
 </div>
 {{ footer() }}
+
+    <script>
+        $('#problems').on('change', function() {
+            $('#problemscount').text($("#problems option:selected").length + " selected");
+        });
+        $('#students').on('change', function() {
+            $('#studentscount').text($("#students option:selected").length + " selected");
+        });
+    </script>
 </body>
 </html>
 

@@ -7,9 +7,9 @@ class Config {
     public static $DATABASE = [
         "host" => "",
         "port" => "5432",
-        "database" => "",
-        "user" => "",
-        "password" => ""
+        "database" => "", // Replace with your database
+        "user" => "",     // Replace with your db username
+        "password" => ""  // Replace with your db password
     ];
 
     public static $TEMPLATE_DIR = "/path/to/src/control/templates";

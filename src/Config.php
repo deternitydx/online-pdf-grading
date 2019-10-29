@@ -14,4 +14,5 @@ class Config {
 
     public static $TEMPLATE_DIR = "/path/to/src/control/templates";
     public static $DATA_DIR = "/path/to/data";
+    public static $TEMP_DIR = "/path/to/tmp";
 }

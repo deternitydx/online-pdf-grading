@@ -112,11 +112,46 @@ class Helper {
             }
 
             if ($filename != null) {
+                // Read PDF
                 header("Content-type:application/pdf");
                 header("Content-Disposition:inline;filename='$userid.pdf'");
                 readfile($filename); 
             } else {
-                echo "<h1>NO PDF</h1>";//$this->showError("Problem viewing file");
+                // Try to find a ZIP file
+                $filename = null;
+                if ($h2 = @opendir($submitDir)) {
+                    while (false !== ($fn = readdir($h2))) {
+                        if ($fn != "." && $fn != ".." && stripos($fn, '.zip') !== false) {
+                            $filename = "$submitDir$fn";
+                        }
+                    }
+                }
+                if ($filename != null) {
+                
+                    //HERE
+                    $zip = new \ZipArchive();
+                    if ($zip->open($filename) === true) {
+                        $internal = null;
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            if (stripos($zip->getNameIndex($i), '.pdf') !== false) {
+                                $internal = $i;
+                            }
+                        }
+                        if ($internal != null) {
+                            header("Content-type:application/pdf");
+                            header("Content-Disposition:inline;filename='$userid.pdf'");
+                            echo $zip->getFromIndex($internal); 
+
+                        } else {
+                            echo "<h1>NO PDF and NO PDF IN ZIP</h1>";//$this->showError("Problem viewing file");
+                        }
+                        $zip->close();
+                    } else {
+                        echo "<h1>NO PDF and CORRUPT ZIP</h1>";//$this->showError("Problem viewing file");
+                    }
+                } else {
+                    echo "<h1>NO PDF and NO ZIP</h1>";//$this->showError("Problem viewing file");
+                }
             }
         } else {
             echo "<h1>NO PDF</h1>";//$this->showError("Problem viewing file");
@@ -147,7 +182,8 @@ class Helper {
     }
 
     private function getRandom($c, $h) {
-        $res = $this->db->query("select g.userid from grade g, grader r where g.homework_id = $1 and g.grader_id = r.id and r.userid = $2 and not g.graded group by g.userid limit 1;", 
+        //$res = $this->db->query("select g.userid from grade g, grader r where g.homework_id = $1 and g.grader_id = r.id and r.userid = $2 and not g.graded group by g.userid limit 1;", 
+        $res = $this->db->query("select g.userid from grade g, grader r where g.homework_id = $1 and g.grader_id = r.id and r.userid = $2 and not g.graded order by g.userid limit 1;", 
             array($h["id"], $this->user["userid"]));
         $tograde = $this->db->fetchAll($res);
         if($tograde !== false && count($tograde) == 1)
@@ -461,11 +497,12 @@ class Helper {
             $i = 0;
             while (($grData = fgetcsv($fp, 1000, ",")) !== FALSE) {
                 if ($i++ > 2)
-                    array_push($students, ["id" => $grData[1], "name" => $grData[2] . ", " . $grData[3]]);
+                    array_push($students, ["id" => $grData[1], "name" => $grData[2] . ", " . $grData[3], "date" => $grData[5]]);
             }
             fclose($fp);
         }
         foreach ($students as $student) {
+            $this->db->query("insert into submissions (homework_id, userid, name, submission_date) values ($1, $2, $3, $4);", array($id, $student["id"], $student["name"], $student["date"]));
             foreach ($problems as $problem) {
                 $this->db->query("insert into grade (homework_id, problem_id, userid, name) values ($1, $2, $3, $4);", array($id, $problem["id"], $student["id"], $student["name"]));
             }
@@ -494,7 +531,7 @@ class Helper {
         }
 
         // You should also check filesize here.
-        if ($_FILES['zipfile']['size'] > 1024000000) {
+        if ($_FILES['zipfile']['size'] > 1524000000) {
             throw new \RuntimeException('Exceeded filesize limit.');
         }
 
@@ -600,6 +637,17 @@ class Helper {
                 "comment" => $grade["comment"]
             ];
         }
+        
+        $res = $this->db->query("select * from submissions where homework_id = $1 order by userid", array($hid));
+        $subs = $this->db->fetchAll($res);
+        if (count($subs) <= 0) {
+            $this->showError("Database Error");
+        }
+        foreach ($subs as $sub) {
+            if (isset($byuser[$sub["userid"]])) {
+                $byuser[$sub["userid"]]["date"] = $sub["submission_date"];
+            }
+        }
 
         $results = [
             "info" => array_merge($homework, ["problems" => $ps]),
@@ -663,10 +711,28 @@ class Helper {
             $score = round($score, 2);
             
 
-            $comments .= "\n-------------------\nOriginal Score: $score\n";
+            $comments .= "\n-------------------\n";
 
-            // TODO: handle late policy
+            // handle late policy
+            $phi = (1 + sqrt(5)) / 2.0;
+            $dueTime = strtotime($info["due_date"]);
+            $timestamp = strtotime($hw["date"]);
+            $diff = $timestamp - $dueTime;
 
+            if ($diff > 0) {
+                $diffD = ((double) $diff) / (60*60*24);
+                $newGrade = round($score * exp((-1/(2*$phi))*$diffD), 2);
+                $penalty = $score - $newGrade;
+                // if the penalty outweighs the score, then set to 0
+                if ($newGrade < 0) {
+                    $newGrade = 0;
+                    $penalty = $score;
+                }
+
+                $comments .= "Original Score: $score\nLate Penalty: $penalty\n\n";
+                $score = $newGrade;
+            }
+            
 
             $comments .= "Final Score: $score\n";
 

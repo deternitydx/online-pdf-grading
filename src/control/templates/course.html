@@ -138,7 +138,7 @@ $(document).ready(function() {
                         {% for name,grader in hw.graders %}
                         <span>{{name}}</span>
                         <div class="progress" style="border: 1px solid #777; height: 1.6em;">
-                            <div class="progress-bar progress-bar-info progress-bar-striped" role="progressbar" aria-valuenow="{{grader.graded}}" aria-valuemin="0" aria-valuemax="{{grader.total}}" style="width: {{grader.graded / grader.total * 100}}%;">
+                            <div class="progress-bar progress-bar-info" role="progressbar" aria-valuenow="{{grader.graded}}" aria-valuemin="0" aria-valuemax="{{grader.total}}" style="width: {{grader.graded / grader.total * 100}}%;">
                                 {{grader.graded}} / {{grader.total}}
                             </div>
                         </div>

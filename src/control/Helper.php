@@ -133,7 +133,7 @@ class Helper {
                     if ($zip->open($filename) === true) {
                         $internal = null;
                         for ($i = 0; $i < $zip->numFiles; $i++) {
-                            if (stripos($zip->getNameIndex($i), '.pdf') !== false) {
+                            if (stripos($zip->getNameIndex($i), '.pdf') !== false && stripos($zip->getNameIndex($i), '__MACOSX') === false) {
                                 $internal = $i;
                             }
                         }
@@ -202,7 +202,7 @@ class Helper {
             $uid = $this->getRandom($course,$homework);
 
         if ($uid == null) {
-            $this->showError("Nothing left to grade!");
+            $this->showHappy("Nothing left to grade!");
             die();
         }
             
@@ -353,6 +353,17 @@ class Helper {
             }
             $homework["graders"] = $tmp;
 
+            // Load all assigned comments for each problem
+            foreach ($homework["problems"] as $pid => $problem) {
+                $res = $this->db->query("select distinct comment from grade where homework_id = $1 and problem_id = $2 order by comment asc;", array($hid, $pid));
+                $data = $this->db->fetchAll($res);
+                $homework["problems"][$pid]["comments"] = [];
+                foreach ($data as $d) {
+                    if (!empty($d["comment"]))
+                        array_push($homework["problems"][$pid]["comments"], $d["comment"]);
+                }
+
+            }
         }
         return $homework;
     }
@@ -388,9 +399,32 @@ class Helper {
         $cid = $data["course_id"];
         $hid = $data["homework_id"];
         $gid = $data["grader"];
-        foreach ($data["students"] as $student) {
-            foreach ($data["problems"] as $problem) {
-                $res = $this->db->query("update grade set grader_id = $1 where homework_id = $2 and userid = $3 and problem_id = $4;", array($gid, $hid, $student, $problem));
+        $num = $data["numstudents"];
+        if (!empty($data["students"]) && !is_numeric($num)) {
+            foreach ($data["students"] as $student) {
+                foreach ($data["problems"] as $problem) {
+                    $res = $this->db->query("update grade set grader_id = $1 where homework_id = $2 and userid = $3 and problem_id = $4;", array($gid, $hid, $student, $problem));
+                }
+            }
+        } else if (is_numeric($num)) {
+            if (count($data["problems"]) == 1) {
+                // If only assigning one, then grab at random
+                foreach ($data["problems"] as $problem) {
+                    $res = $this->db->query("update grade set grader_id = $1 where id in (select id from grade where homework_id = $2 and problem_id = $3 and grader_id is null order by random() limit $num);", array($gid, $hid, $problem));
+                }
+            } else {
+                // Otherwise, be smart and try to grab all problems from the same students
+                //$i = 0;
+                //while ($i < $num) {
+                //    $res = $this->db->query("select id from grade where homework_id = $2 and grader_id is null order by random();", array($hid));
+
+                //}
+                // Currently just assigns all to one grader
+                $res = $this->db->query("select userid from (select distinct userid from grade where homework_id = $1 and grader_id is null) a order by random() limit $num;", array($hid));
+                $userids = $this->db->fetchAll($res);
+                foreach ($userids as $userid) {
+                    $res = $this->db->query("update grade set grader_id = $1 where homework_id = $2 and userid = $3 and grader_id is null;", array($gid, $hid, $userid["userid"]));
+                }
             }
         }
                 
@@ -589,6 +623,11 @@ class Helper {
         die();
     }
 
+    public function showHappy($error) {
+        $this->display("happy", ["notice" => $error]);
+        die();
+    }
+
     private function loadResults($hid, $cid) {
         $res = $this->db->query("select * from course c where c.id = $1", array($cid));
         $course = $this->db->fetchAll($res);
@@ -696,15 +735,17 @@ class Helper {
             $score = 0;
             foreach ($info["problems"] as $q) {
                 $comments .= "{$q["name"]}: ";
-                if (isset($hw["problems"][$q["id"]]) && isset($hw["problems"][$q["id"]]["grade"])) {
-                    $comments .= $hw["problems"][$q["id"]]["grade"] . "/" . $q["points"] ." -- ";
-                    $score += $hw["problems"][$q["id"]]["grade"];
+                if (isset($hw["problems"][$q["id"]])) {
+                    if (isset($hw["problems"][$q["id"]]["grade"])) {
+                        $comments .= $hw["problems"][$q["id"]]["grade"] . "/" . $q["points"];
+                        $score += $hw["problems"][$q["id"]]["grade"];
+                    } else {
+                        $comments .= "0/".$q["points"];
+                    }
                     if (isset($hw["problems"][$q["id"]]["comment"])) {
-                        $comments .= $hw["problems"][$q["id"]]["comment"];
+                        $comments .= " -- " . $hw["problems"][$q["id"]]["comment"];
                     }
                     $comments .= "\n";
-                } else {
-                    $comments .= "0/".$q["points"]."\n";
                 }
             }
 

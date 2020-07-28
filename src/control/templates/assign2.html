@@ -61,19 +61,16 @@ $(document).ready(function() {
             <form method="POST" action="?command=assign-graders-post">
                 <input type="hidden" name="course_id" value="{{data.course.id}}">
                 <input type="hidden" name="homework_id" value="{{data.homework.id}}">
+                <div class="form-group">
+                    <label for="grader">Grader</label>
+                    <select name="grader" class="form-control prettify">
+                        {% for grader in data.course.graders %}
+                        <option value="{{grader.id}}">{{grader.name}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="row">
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="grader">Grader</label>
-                            <select name="grader" size="25" class="form-control" style="width: 200px;" id="grader">
-                                {% for grader in data.course.graders %}
-                                <option value="{{grader.id}}">{{grader.name}}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <p id="graderscount">0 selected</p>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label for="problems">Problems</label>
                             <select multiple name="problems[]" size="15" class="form-control" style="width: 200px;" id="problems">
@@ -84,7 +81,7 @@ $(document).ready(function() {
                         </div>
                         <p id="problemscount">0 selected</p>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label for="numstudents">Number of Random</label>
                             <input name="numstudents" size="5" class="form-control" id="numstudents"/>
@@ -113,9 +110,6 @@ $(document).ready(function() {
         });
         $('#students').on('change', function() {
             $('#studentscount').text($("#students option:selected").length + " selected");
-        });
-        $('#grader').on('change', function() {
-            $('#gradercount').text($("#grader option:selected").length + " selected");
         });
     </script>
 </body>

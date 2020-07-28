@@ -4,7 +4,9 @@
 <title>Grade</title>
 
 <!-- JQuery -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
 <script src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
 
 <!-- Latest compiled and minified CSS -->
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
@@ -38,6 +40,86 @@ body {
 .container {
     width: 100%;
 }
+
+.ui-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    float: left;
+    display: none;
+    min-width: 160px;
+        _width: 160px;
+    padding: 4px 0;
+    margin: 2px 0 0 0;
+    list-style: none;
+    background-color: #ffffff;
+    border-color: #ccc;
+    border-color: rgba(0, 0, 0, 0.2);
+    border-style: solid;
+    border-width: 1px;
+    -webkit-border-radius: 5px;
+    -moz-border-radius: 5px;
+    border-radius: 5px;
+    -webkit-box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    -moz-box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    -webkit-background-clip: padding-box;
+    -moz-background-clip: padding;
+    background-clip: padding-box;
+    *border-right-width: 2px;
+    *border-bottom-width: 2px;
+}
+.ui-menu-item > a.ui-corner-all {
+    display: block;
+    padding: 3px 15px;
+    clear: both;
+    font-weight: normal;
+    line-height: 18px;
+    color: #555555;
+    white-space: nowrap;
+}
+
+&.ui-state-hover, &.ui-state-active {
+    color: #ffffff;
+    text-decoration: none;
+    background-color: #0088cc;
+    border-radius: 0px;
+    -webkit-border-radius: 0px;
+    -moz-border-radius: 0px;
+    background-image: none;
+}
+
+
+
+/* override JQuery Ui for autocomplete */
+.ui-widget {
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.ui-menu .ui-menu-item {
+    padding: 4px;
+    margin: 2px;
+}
+
+.ui-state-focus, .ui-widget-content .ui-state-focus {
+    background: #337ab7;
+    border: 0px;
+    color: #fff;
+}
+
+.ui-autocomplete, .ui-widget-content {
+    margin-left: 0px;
+}
+.subtext {
+    font-size: 8px;
+    margin: 0px;
+    padding: 0px;
+    text-align: center;
+    color: #444444;
+}
+
 </style>
 </head>
 
@@ -54,13 +136,19 @@ body {
                     style="width: 100%; height: 900px; border: 0px; padding:0px; margin:0px;"></iframe>
         </div>
         <div class="col-md-2">
-            <h1>{{data.homework.name}}</h1>
-            <h2>{{data.userid}}</h2>
+            <h3>{{data.homework.name}}</h3>
+            <div class="progress" style="border: 1px solid #777; height: 0.5em; margin-bottom: 0px;">
+                <div class="progress-bar progress-bar-info" role="progressbar" aria-valuenow="{{data.homework.graderstatus.graded}}" aria-valuemin="0" aria-valuemax="{{data.homework.graderstatus.total}}" style="width: {{data.homework.graderstatus.graded / data.homework.graderstatus.total * 100}}%;">
+                </div>
+            </div>
+            <p class="subtext">{{data.homework.graderstatus.graded}} / {{data.homework.graderstatus.total}}</p>
+            <h4>{{data.userid}}</h4>
+            <p><a href="?command=show-pdf&homework_id={{data.homework.id}}&userid={{data.userid}}" target="_blank">Download PDF</a></p>
             <form method="POST" action="?command=save-grade">
                 <input type="hidden" name="course_id" value="{{data.course.id}}">
                 <input type="hidden" name="homework_id" value="{{data.homework.id}}">
                 <input type="hidden" name="userid" value="{{data.userid}}">
-                
+               
                 {% for problem in data.tograde %}
                 <input type="hidden" name="problem[]" value="{{problem.id}}">
                 <p style="font-weight: bold;">{{problem.p.name}}</p>
@@ -71,8 +159,19 @@ body {
                     </div>
                 </div>
                 <div class="form-group">
-                    <input type="text" class="form-control" name="comments[]" placeholder="Comments" value="{{problem.comment}}">
+                    <input type="text" class="form-control" name="comments[]" placeholder="Comments" value="{{problem.comment}}" id="comments{{problem.id}}">
                 </div>
+                <script>
+                    var prevComments{{problem.id}} = [
+                        {% for comment in data.homework.problems[problem.problem_id].comments %}
+                        "{{comment|e('js')}}",
+                        {% endfor %}
+                        ];
+                    $("#comments{{problem.id}}").autocomplete({
+                        minLength: 0,
+                        source: prevComments{{problem.id}}
+                    });
+                </script>
                 {% endfor %}
                 <button type="submit" class="btn btn-default">Assign and Continue</button>
                 <br>

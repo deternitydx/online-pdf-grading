@@ -5,13 +5,13 @@ namespace grader;
 class Config {
 
     public static $DATABASE = [
-        "host" => "localhost",
+        "host" => "",
         "port" => "5432",
-        "database" => "pdf_grader",
-        "user" => "pdf_grader",
-        "password" => "GRADERpdf"
+        "database" => "",
+        "user" => "",
+        "password" => ""
     ];
 
-    public static $TEMPLATE_DIR = "/scratch/grading_app/src/control/templates";
-    public static $DATA_DIR = "/scratch/grading_app/data";
+    public static $TEMPLATE_DIR = "/path/to/src/control/templates";
+    public static $DATA_DIR = "/path/to/data";
 }
